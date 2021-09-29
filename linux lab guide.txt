@@ -1,0 +1,284 @@
+3.	Working with Stratis in RHEL8 
+Note: Before starting the lab – reset the lab snapshot to start of class
+3.1 This lab should be run on Server1 as root user
+ssh student@192.168.4.3
+su -l root
+hostname ; echo ; whoami
+ 
+For help on stratis look at the help file
+man stratis ; pinfo stratis
+ 
+3.2 Install the stratis stratis-cli packages , enable the Stratisd daemon and start the service
+ 
+yum install stratisd stratis-cli
+systemctl enable - -now startisd
+systemctl status stratisd
+ 
+Note :  If the package is not getting installed then create this repo file in /etc/yum.repos.d , move other repo files which are present in this folder
+ vim /etc/yum.repos.d/os.repo    ----- enter following text
+[dvd_baseos]
+name=Oracle Linux 8 DVD BaseOS Repo
+baseurl=http://192.168.4.1/DVD/BaseOS/
+enabled=1
+gpgcheck=0
+ 
+[dvd_appstream]
+name=Oracle Linux 8 DVD AppStream Repo
+baseurl=http://192.168.4.1/DVD/AppStream/
+enabled=1
+gpgcheck=0
+3.3 Create a stratis pool on /dev/vdb with name “stratispool1” and list the pool
+stratis pool create stratispool1 /dev/vdb
+stratis pool list
+ 
+ 
+3.4 Expand the capacity of the “stratispool1” to use disk /dev/vdc and verify the new pool size
+stratis pool add-data stratispool1 /dev/vdc
+stratis pool list
+ 
+ 
+3.5 List the block devices backing the stratispool1
+stratis blockdev list stratispool1
+ 
+ 
+3.6 Add a Thin-Provisioned filesystem “stratis-fs1” on “stratispool1” and mount at “/mnt/stratisvol”
+stratis filesystem create stratispool1 stratis-fs1
+stratis filesystem list
+mkdir -p /mnt/stratis-vol
+mount /stratis/stratispool/stratis-fs1  /mnt/stratis-vol
+mount | grep stratis-vol
+Notice that stratis-fs1 is formatted with xfs filesystem 
+ 
+ 
+3.7 Verify that thin volume grows when new data is added
+stratis filesystem list
+echo “This is a Stratis Fileystem – Thin Volume”  >> /mnt/stratis-vol/samplefile.txt
+dd if=/dev/urandom of=/mnt/stratis-vol/1GbFile   bs=1M  count=1024
+stratis filesystem list
+ 
+ 
+3.8 Creating a Snapshot on the stratis-fs1 with name “snap-of-fs1”, deleting a file from source and restoring from snap
+stratis filesystem snapshot stratispool1 stratis-fs1 snap-of-fs1
+stratis filesystem list
+rm /mnt/stratis-vol/samplefile.txt
+mkdir -p /mnt/snap-stratis
+mount /stratis/stratispool1/snap-of-fs1  /mnt/snap-stratis
+cat /mnt/snap-stratis/samplefile.txt
+ 
+ 
+ 
+3.9 Destroy the Stratis-fs1 , snap-of-fs1 and Remove the Stratis pool stratispool1
+umount /mnt/stratis-vol
+umount /mnt/snap-stratis
+stratis filesystem destroy stratispool1 stratis-fs1
+stratis filesystem destroy stratispool1 snap-of-fs1
+stratis filesystem list
+stratis pool destroy stratispool1
+stratis pool list
+ 
+ 
+ 
+ 
+**** Lab Working with Stratis in RHEL 8 Completed ****
+ 
+4.	Checking GRUB2 Config file and modifyingDo boot timer
+4.1  This Lab should be run on Server1 as root user
+Login to Server1(192.168.4.3) system for this lab
+
+
+ssh student@192.168.4.3
+su -l root
+(Enter the password as “Passw0rd!” for root user)
+hostname ; echo ; whoami
+ 
+ 
+4.2 .  Launch the console of Server1 from Virtual Machine Manager  (Keep this open on the background we would need to see this)
+ 
+ 
+4.3 Run these commands on the ssh console taken on workstation system
+ 
+cat /etc/default/grub
+Edit the GRUB_TIMEOUT value to 10 seconds and remove the rhgb and Quite options on GRUB_CMDLINE_LINUX
+vim /etc/default/grub    
+cat /etc/default/grub | grep -E "TIMEOUT|CMDLINE"
+grub2-mkconfig > /boot/grub2/grub.cfg
+reboot
+ 
+ 
+ 
+ 
+Check the console of server1 taken from Virtual Machine Manager to verify on the boot-timer has changed and boot messages displayed - if need restart again if you missed it.
+ 
+ 
+ 
+ 
+5.	Resetting Root password   (Chapter 18 - Page 416 - Revision 2 Book )
+This lab needs to be run on console of Server2  - Take console of server2 from Virtual Machine Manager 
+5.1 On system boot, press E when the GRUB 2 boot menu is shown.  (Press Spacebar key to stop the timer)
+ 
+ 
+5.2. Enter rd.break console=tty1 as a boot argument to the line that loads the kernel and press Ctrl-X to boot with this option.
+ 
+ 
+5.3. You’ll now be dropped at the end of the boot stage where initramfs is loaded, just before a mount of the root file system on the directory /. Run this command to check sysroot mount as Read-only (RO)
+     mount | grep sysroot
+ 
+5.4. Type mount -o remount,rw /sysroot to get read/write access to the system image.
+    mount | grep sysroot
+5.5 At this point, make the contents of the /sysimage directory your new root directory by typing 
+chroot /sysroot
+5.6. Now you can enter the new password for the user root using following command
+echo "Passw0rd!" | passwd root --stdin
+5.7. Because at this very early boot stage SELinux has not been activated yet, the context type on /etc/shadow will be messed up. If you reboot at this point, no one will be able to log in. So you must make sure that the context type is set correctly. 
+touch /.autorelabel
+exit
+exit
+ 
+ 
+ 
+5.8 Upon reboot enter the New password for root user  , system might take a minute or two to bootup 
+ 
+ 
+*** Lab Resetting Root password Complete "
+ 
+ 
+ 
+6.	Troubleshooting common boot problems
+ 
+6.1 Exploring Troubleshooting Targets
+This lab needs to be run on console of Server2  - Take console of server2 from Virtual Machine Manager 
+ 
+6.1.1. (Re)start your computer Server2. When the GRUB menu shows, select the first line in the menu and press e.
+ 
+ 
+6.1.2. Scroll down to the line that starts with linux $(root)/vmlinuz. At the end of this line, type 
+systemd.unit=rescue.target console=tty1
+       Also remove the options rhgb quite from this line. Press Ctrl-X to boot with these modifications.
+ 
+ 
+6.1.3. Enter the root password when you are prompted for it.
+6.1.4. Type systemctl list-units | wc -l   << This shows all unit files that are currently loaded number of lines .
+6.1.5. Type systemctl show-environment | wc -l   << This shows current shell environment variables number of lines.
+        Type systemctl list-units      << This will list the unit files loaded make note of few
+6.1.6. Type systemctl reboot to reboot your machine.
+ 
+ 
+ 
+6.1.7. When the GRUB menu appears, press e again to enter the editor mode. At the
+end of the line that loads the kernel, type systemd.unit=emergency.target console=tty1
+Press Ctrl-X to boot with this option.
+ 
+ 
+6.1.8. When prompted for it, enter the root password to log in.
+6.1.9. After successful login, type systemctl list-units | wc -l . Notice that the number of unit files loaded is reduced to a bare minimum.
+ 
+ 
+ 
+ 
+ 
+6.2 Repairing File System issues at boot
+This lab needs to be run on console of Server2  - Take console of server2 from Virtual Machine Manager 
+ 
+6.2.1  Login as root user, Add this entry to the end of /etc/fstab   << to simulate boot error
+cp -v /etc/fstab   /tmp/fstab.bak
+echo "/dev/vdxx  /REMOVE-ME   REMOVE-ME" >> /etc/fstab
+tail /etc/fstab
+systemctl reboot
+ 
+ 
+ 
+6.2.2 When the GRUB menu appears, press e to enter the editor mode. At the
+end of the line that loads the kernel, type systemd.unit=emergency.target console=tty1
+Press Ctrl-X to boot with this option.
+ 
+ 
+6.2.3. When prompted for it, enter the root password to log in.
+mount | grep ro
+mount -o remout,rw /
+mount | grep root
+ 
+ 
+vim /etc/fstab 
+Comment the line   "/dev/vdxx /REMOVE-me …."
+tail -1 /etc/fstab
+systemctl reboot
+ 
+ 
+ 
+6.2.4  System would boot into the OS - login as root user to confirm on work
+ 
+ 
+**** This concludes the lab on troubleshooting filesystem issue on boot ****
+ 
+ 
+7.	Working with Tuning Profile on server 
+7.1 This Lab should be run on Server1 as root user
+Login to Server1(192.168.4.3) system for this lab
+ssh student@192.168.4.3
+su -l root
+(Enter the password as “Passw0rd!” for root user)
+hostname ; echo ; whoami
+ 
+ 
+For info on Tuned run 
+man tuned-adm
+tuned-adm --help
+ 
+7.2 Check if Tuned is  installed on server (It probably already installed.)
+       yum -y install tuned
+       yum info installed tuned
+7.3 Type systemctl status tuned to check whether tuned currently is running. If it is not, use systemctl enable --now tuned.
+      systemctl status tuned.service
+     systemctl enable --now tuned.service
+7.4 To see which profile currently is used, type 
+       tuned-adm active 
+7.5 To see which tuned profile is recommended, type
+       tuned-adm recommend 
+7.6. To select and activate the throughput-performance profile, type 
+       tuned-adm profile throughput-performance.
+       tuned-adm active
+      tuned-adm recommend
+ 
+ 
+ 
+ 
+8.	Changing nice values of processes 
+8.1 This Lab should be run on Server1 as root user
+Login to Server1(192.168.4.3) system for this lab
+ssh student@192.168.4.3
+su -l root
+(Enter the password as “Passw0rd!” for root user)
+hostname ; echo ; whoami
+ 
+ 
+8.2 Start a few background process which start using CPU resources
+Note: Don't run these commands on a production server as they shoot-up CPU Usage
+dd if=/dev/urandom of=/dev/null &
+md5sum /dev/urandom &
+cat /dev/urandom >> /dev/null &
+jobs
+ps aux | grep -E "md5sum|cat|dd"
+Notice the 3rd Column which shows the CPU usage for the Processes
+ 
+ 
+8.3 To start a process with a higher nice value - which would assign better CPU resources to this new process
+    nice -n -5 md5sum /dev/urandom&
+   ps aux | grep md5sum
+Notice that new process has a better CPU allocation according to 3rd column
+ 
+ 
+8.4 To change the nice value of a existing process - we need to renice the process ID
+  pgrep md5sum
+   renice -n 0  2005
+    ps aux | grep md5sum
+ 
+ 
+8.5 To change the nice values for all the Processes of md5sum
+renice -n -5 $(pgrep md5sum)
+ps aux | grep md5sum
+ 
+ 
+Pro-Tip - You may use the top command to check the running process and change nice value of process from there as well
+ 
+**** This Concludes the Day 1 Lab Activities ****
+
